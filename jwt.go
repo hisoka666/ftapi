@@ -6,6 +6,10 @@ import (
    "net/http"
    "appengine"
    "appengine/datastore"
+   _"encoding/json"
+   "io/ioutil"
+   jwt "github.com/dgrijalva/jwt-go"
+   _"time"
 )
 
 type User struct {
@@ -13,12 +17,15 @@ type User struct {
 	Password []byte
 }
 
+//fungsi untuk registrasi user baru. fungsi ini rencananya
+//akan hanya bisa diakses oleh admin.
 func register(w http.ResponseWriter, r *http.Request){
     ctx := appengine.NewContext(r)
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
 	bpass := []byte(password)
+	//salah satu metode dari paket bcrypt
     hashed, err := bc.GenerateFromPassword(bpass, 0)
     if err != nil {
     	fmt.Fprintln(w, "Error %v", err)
@@ -63,9 +70,36 @@ func login(w http.ResponseWriter, r *http.Request){
     	return
     } else {
     	fmt.Fprintf(w, "Selamat datang %s", user)
+    	fmt.Fprintln(w, "")
+    	signKey, err := ioutil.ReadFile("app.rsa")
+    	if err != nil {
+    		fmt.Fprintf(w, "Error %v", err)
+    		return
+    	}
+    	m := jwt.New(jwt.GetSigningMethod("RS256"))
+    	
+    	tokenString, err := m.SignedString(signKey)
+    	if err != nil {
+    		w.WriteHeader(http.StatusInternalServerError)
+    		fmt.Fprintf(w, "Error Signing Token %v", err)
+    		return
+    	}
+    	//js, err := json.Marshal(tokenString)
+    	fmt.Fprintln(w, tokenString)
+
     }
 
 }
+
+func middle(next http.HandlerFunc) http.Handler{
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+		//mid before
+
+		next.ServeHTTP(w, r)
+		//mid after
+		})
+}
+
 func init(){
 	http.HandleFunc("/register", register)
 	http.HandleFunc("/login", login)
